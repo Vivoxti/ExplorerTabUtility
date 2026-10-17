@@ -8,6 +8,7 @@ using ExplorerTabUtility.Models;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Managers;
 using ExplorerTabUtility.UI.Commands;
+using Hardcodet.Wpf.TaskbarNotification;
 
 namespace ExplorerTabUtility.UI.Views.Controls;
 
@@ -32,7 +33,6 @@ public partial class SystemTrayIcon : UserControl, IDisposable
         _hookManager = hookManager;
         _showWindowAction = showWindowAction;
 
-        _hookManager.OnShellInitialized += HookManager_OnShellInitialized;
         _hookManager.OnWindowHookToggled += HookManager_OnWindowHookToggled;
         _hookManager.OnReuseTabsToggled += HookManager_OnReuseTabsToggled;
 
@@ -58,24 +58,6 @@ public partial class SystemTrayIcon : UserControl, IDisposable
         ExitApplication.Command = new RelayCommand(_ => Application.Current.Shutdown());
     }
 
-    private void HookManager_OnShellInitialized()
-    {
-        // Workaround for hardcodet/wpf-notifyicon bug: repeatedly hide icon when explorer.exe restarts
-        if (TrayIcon.Visibility == Visibility.Visible) return;
-        Helper.DoUntilTimeEnd(HideTrayIcon, 7000, 1000);
-        return;
-        
-        void HideTrayIcon()
-        {
-            TrayIcon.Dispatcher.BeginInvoke(() =>
-            {
-                if (TrayIcon.Visibility == Visibility.Visible) return;
-                TrayIcon.Visibility = Visibility.Hidden;
-                TrayIcon.Visibility = Visibility.Collapsed;
-            });
-        }
-    }
-    
     private void HookManager_OnWindowHookToggled()
     {
         if (WindowHook.IsChecked)
@@ -113,7 +95,32 @@ public partial class SystemTrayIcon : UserControl, IDisposable
         PopulateHookProfiles(MouseHookMenu, _profileManager.GetMouseProfiles(), autoCheckParent);
     }
 
-    public void SetTrayIconVisibility(bool visible) => TrayIcon.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    public void SetTrayIconVisibility(bool visible)
+    {
+        if (!visible)
+        {
+            // Hardcodet recreates even collapsed icons on TaskbarCreated.
+            // Disposing also removes its message window, so a hidden icon
+            // cannot reappear when Explorer or the taskbar restarts.
+            TrayIcon.Dispose();
+            return;
+        }
+
+        if (!TrayIcon.IsDisposed) return;
+
+        var contextMenu = TrayIcon.ContextMenu;
+        var icon = TrayIcon.Icon;
+        TrayIcon.ContextMenu = null;
+        TrayIcon = new TaskbarIcon
+        {
+            Icon = icon,
+            ToolTipText = Constants.NotifyIconText,
+            DataContext = this,
+            ContextMenu = contextMenu
+        };
+        TrayIcon.TrayMouseDoubleClick += OnNotifyIconDoubleClick;
+        Content = TrayIcon;
+    }
     private void OnNotifyIconDoubleClick(object sender, RoutedEventArgs _) => _showWindowAction();
 
     private void ToggleKeyboardHookMenu()

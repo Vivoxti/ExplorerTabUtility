@@ -183,7 +183,7 @@ Say goodbye to cluttered desktops with multiple Explorer windows! Explorer Tab U
   ```
   %APPDATA%\ExplorerTabUtility\settings.json
   ```
-  If you need to reset to default settings, simply delete the settings.json file.
+Settings are saved atomically, with the previous valid version kept in `settings.json.bak` and used for recovery if the main file is damaged or missing. To reset to defaults, close the application and delete both `settings.json` and `settings.json.bak`.
 </details>
 
 <details>

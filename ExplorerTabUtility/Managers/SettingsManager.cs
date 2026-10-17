@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Windows;
-using System.Text.Json;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ExplorerTabUtility.Models;
@@ -19,26 +18,11 @@ public static class SettingsManager
         Constants.AppName,
         Constants.SettingsFileName);
 
+    private static readonly SettingsStorage<AppSettings> Storage = new(SettingsFilePath);
+
     static SettingsManager()
     {
-        var directory = Path.GetDirectoryName(SettingsFilePath);
-        Directory.CreateDirectory(directory!);
-
-        if (!File.Exists(SettingsFilePath))
-        {
-            Settings = new AppSettings();
-            return;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(SettingsFilePath);
-            Settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-        }
-        catch (Exception)
-        {
-            Settings = new AppSettings();
-        }
+        Settings = Storage.Load();
     }
 
     private static void NotifyStaticPropertyChanged([CallerMemberName] string propertyName = "")
@@ -195,8 +179,7 @@ public static class SettingsManager
     {
         try
         {
-            var json = JsonSerializer.Serialize(Settings);
-            File.WriteAllText(SettingsFilePath, json);
+            Storage.Save(Settings);
         }
         catch (Exception ex)
         {
