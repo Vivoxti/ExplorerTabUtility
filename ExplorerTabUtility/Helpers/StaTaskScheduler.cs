@@ -11,6 +11,7 @@ public sealed class StaTaskScheduler : TaskScheduler, IDisposable
 {
     private readonly Thread _staThread;
     private readonly BlockingCollection<Task> _tasks = new();
+    private int _disposed;
 
     public StaTaskScheduler()
     {
@@ -63,8 +64,11 @@ public sealed class StaTaskScheduler : TaskScheduler, IDisposable
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
         _tasks.CompleteAdding();
-        _staThread.Join();
+        if (Thread.CurrentThread != _staThread)
+            _staThread.Join();
         _tasks.Dispose();
     }
 }

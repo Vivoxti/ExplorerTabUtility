@@ -17,6 +17,7 @@ public sealed class HookManager
     private readonly Keyboard _keyboardHook;
     private readonly ExplorerWatcher _windowHook;
     private readonly SynchronizationContext _syncContext;
+    private bool _disposed;
     public event Action? OnVisibilityToggled;
     public event Action? OnWindowHookToggled;
     public event Action? OnReuseTabsToggled;
@@ -199,6 +200,10 @@ public sealed class HookManager
 
     public void Dispose()
     {
+        // Called from both SessionEnding and Application.Exit on logoff/shutdown
+        if (_disposed) return;
+        _disposed = true;
+
         _keyboardHook.Dispose();
         _mouseHook.Dispose();
         _windowHook.Dispose();

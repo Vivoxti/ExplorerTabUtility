@@ -37,6 +37,7 @@ public class ExplorerWatcher : IHook
     private readonly ProcessWatcher _processWatcher;
     private int _mainExplorerProcessId;
     private Timer? _explorerCheckTimer;
+    private bool _shellInitialized, _disposed;
 
     private nint _eventObjectShowHookId;
     private WinEventDelegate? _eventObjectShowHookCallback;
@@ -835,8 +836,8 @@ public class ExplorerWatcher : IHook
         
         lock (_processLock)
         {
-            if (_mainExplorerProcessId != 0) return;
-            
+            if (_disposed || _mainExplorerProcessId != 0) return;
+
             _mainExplorerProcessId = process.Id;
             InitializeShellObjects();
             OnShellInitialized?.Invoke();
@@ -847,6 +848,7 @@ public class ExplorerWatcher : IHook
         // Main explorer.exe process (_shellWindows must be restarted)
         lock (_processLock)
         {
+            if (_disposed) return;
             if (e.ProcessId == _mainExplorerProcessId)
             {
                 _mainExplorerProcessId = 0;
@@ -894,6 +896,7 @@ public class ExplorerWatcher : IHook
         _shellPathComparer = new ShellPathComparer();
         _staTaskScheduler = new StaTaskScheduler();
         _shellWindows = new ShellWindows();
+        _shellInitialized = true;
 
         _defaultLocation = Helper.GetDefaultExplorerLocation(_shellPathComparer);
         
@@ -931,6 +934,10 @@ public class ExplorerWatcher : IHook
     }
     private void DisposeShellObjects()
     {
+        // Already released (explorer.exe exited first) or never created (explorer not found yet)
+        if (!_shellInitialized) return;
+        _shellInitialized = false;
+
         PersistWindows();
 
         // Unhook global event
@@ -994,7 +1001,15 @@ public class ExplorerWatcher : IHook
 
     public void Dispose()
     {
-        DisposeShellObjects();
+        lock (_processLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _explorerCheckTimer?.Dispose();
+            _explorerCheckTimer = null;
+            DisposeShellObjects();
+        }
         _instanceRunning = false;
         _processWatcher.Dispose();
         GC.SuppressFinalize(this);
